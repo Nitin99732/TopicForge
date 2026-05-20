@@ -13,4 +13,5 @@ dependencies = [
     "chromadb>=1.5.9",
     "langgraph>=1.1.10",
     "ipython>=9.13.0",
+    "streamlit>=1.57.0",
 ]
