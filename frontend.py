@@ -2,7 +2,7 @@
 import streamlit as st
 
 # Upload file
-upload_file = st.file_uploader(label="Upload PDF, TXT or DOCX.", type=["pdf", "txt", "docx"])
+upload_file = st.file_uploader(label="Upload PDF, TXT or DOCX.", type=["pdf", "txt", "docx"], max_upload_size=10)
 
 
 #File Uploaded Successfully
