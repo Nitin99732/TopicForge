@@ -2,9 +2,9 @@
 import streamlit as st
 import os 
 
-from backend.agent import document_validation_node
+from backend.agent import process_document
 
-uploaded_file = st.file_uploader("Uploaded File", type=["pdf", "txt", "docx"], max_upload_size=10)
+uploaded_file = st.file_uploader("Uploaded File", type=["pdf", "txt", "docx"], max_upload_size=1)
 
 if uploaded_file is not None:
 
@@ -26,15 +26,7 @@ if uploaded_file is not None:
     }
 
     # Run backend validation 
-    updated_state = document_validation_node(state)
+    updated_state = process_document(state)
 
-    # Show result 
-    if updated_state["validation_status"] == "success":
+ 
 
-        st.success("Document validation successful.")
-
-        st.write(updated_state)
-
-    else:
-
-        st.error(updated_state["validation_reason"])

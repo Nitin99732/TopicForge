@@ -21,6 +21,11 @@ from langgraph.graph import StateGraph, START, END
 
 from IPython.display import Image, display
 
+from dotenv import load_dotenv
+
+from pypdf import PdfReader
+
+load_dotenv()
 
 # Agent State
 class AgentState(TypedDict):
@@ -90,7 +95,7 @@ def document_validation_node(state : AgentState) -> AgentState:
     # Corrupted pdf check
     try:
         # Open pdf
-        doc = fitz.open(file_path)
+        doc = PdfReader(file_path)
 
     except Exception:
         state["validation_status"] = "failed"
@@ -108,8 +113,8 @@ def document_validation_node(state : AgentState) -> AgentState:
     # Extract text
     extracted_text = ""
 
-    for page in doc:
-        extracted_text += page.get_text()
+    for page in doc.pages:
+        extracted_text += page.extract_text()
 
     # Empty pdf check
     if len(extracted_text.strip()) == 0:
@@ -129,7 +134,196 @@ def document_validation_node(state : AgentState) -> AgentState:
     state["validation_status"] = "success"
     state["validation_reason"] = ""
 
-    doc.close()
 
     return state    
     
+
+ 
+    
+# Document Ingestion Node
+def document_ingestion_node(state : AgentState) -> AgentState:
+    """
+    Extract structured readable content 
+    from validate document 
+
+    strategy :-
+    - for txt : full text extraction
+    - for docx : pagragph based extraction
+    - for pdf : page based extraction
+    """
+
+    # Retriving document info
+    file_path = state["file_path"]
+    file_type = state["file_type"]
+
+    sections = []
+
+    # txt text extraction
+    if file_type == ".txt":
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            
+            text = file.read()
+
+        sections.append({
+            "page" : 1,
+            "text" : text.strip()
+        })
+
+    # docx text extraction
+    elif file_type == ".docx":
+
+        doc = Document(file_path)
+
+        full_text = ""
+
+        for paragraph in doc.paragraphs:
+            
+            if paragraph.text.strip():
+
+                full_text += paragraph.text + "\n"
+
+        sections.append({
+            "page" : 1,
+            "text" : full_text.strip()
+        })
+
+    # pdf text extraction
+    elif file_type == ".pdf":
+        doc = fitz.open(file_path)
+ 
+        for page_number, page in enumerate(doc):
+            text = page.get_text()
+
+            if len(text.strip()) == 0:
+                continue
+        
+            sections.append({
+                "page" : page_number + 1,
+                "text" : text.strip()
+            })
+            
+        doc.close()
+
+    # Store Sections in state
+    state["sections"] = sections
+    
+    return state
+
+        
+
+
+# Semantic Chunking Node
+def semantic_chunking_node(state : AgentState) -> AgentState:
+    """
+    Converts extracted documetn setions 
+    into semantically meaningful chunks.
+
+    Strategy:
+    - Recursive semantic splitting
+    - Overlap preservation
+    - Page tracking
+    """
+
+    # Reterive sections info from state
+    sections = state["sections"]
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size = 800,
+        chunk_overlap = 150,
+        length_function = len
+    )
+
+    chunks = []
+
+    for section in sections:
+
+        page = section["page"]
+        text = section["text"]
+
+        # Skip empty text 
+        if len(text.strip()) == 0:
+            continue
+
+        # Generate semantic chunks
+        split_chunks = text_splitter.split_text(text)
+
+        # Store chunks meta data
+        for chunk_order, chunk_text in enumerate(split_chunks):
+            chunks.append({
+                "chunk_id" : str(uuid4()),
+                "page" : page,
+                "chunk_order" : chunk_order + 1,
+                "text" : chunk_text
+            })
+
+    state["chunks"] = chunks
+
+    return state
+
+
+
+# Indexing Node
+embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
+
+chroma_client = chromadb.PersistentClient(path = "./chroma_db")
+
+collection = chroma_client.get_or_create_collection(name="educational_chunks")
+
+def indexing_node(state : AgentState) -> AgentState:
+    """
+    Converts chunks into embeddings 
+    and store them in chromadb.
+    """
+
+    chunks = state["chunks"]
+    
+    # Process each chunk
+    for chunk in chunks:
+
+        # Reterive info from chunks
+        chunk_id = chunk["chunk_id"]
+        page = chunk["page"]
+        text = chunk["text"]
+        chunk_order = chunk["chunk_order"]
+
+        # Generate embeddings
+        embedding = embedding_model.embed_query(text)
+
+        # Store in ChromaDB
+        collection.add(
+            ids = [chunk_id],
+            documents = [text],
+            embeddings = [embedding],
+            metadatas = [{
+                "page" : page,
+                "chunk_order" : chunk_order
+            }]
+
+        )
+
+    # Store Indexing status
+    state["indexing_status"] = "success"
+
+    return state
+
+# Document Processing pipeline
+def process_document(state : AgentState) -> AgentState:
+
+    # Validation
+    state = document_validation_node(state)
+
+    if state["validation_status"] == "failed":
+        return state
+    
+    # Extract text
+    state = document_ingestion_node(state)
+
+    # Chunking 
+    state = semantic_chunking_node(state)
+
+    # Indexing
+    state = indexing_node(state)
+
+    return state
+
