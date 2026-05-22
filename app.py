@@ -28,5 +28,15 @@ if uploaded_file is not None:
     # Run backend validation 
     updated_state = process_document(state)
 
- 
+    
 
+    # Suggested Topics
+    st.subheader("Suggested Topics")
+
+    st.write(updated_state["suggested_topics"])
+
+    # User Selected Topic/SubTopic
+    selected_topic = st.text_input("Enter your topic or subtopic: ")
+
+    # Store Selected Topic in State
+    updated_state["selected_topic_or_subtopic"] = selected_topic

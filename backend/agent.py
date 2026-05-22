@@ -27,6 +27,10 @@ from pypdf import PdfReader
 
 load_dotenv()
 
+
+#LLM 
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
 # Agent State
 class AgentState(TypedDict):
 
@@ -307,23 +311,82 @@ def indexing_node(state : AgentState) -> AgentState:
 
     return state
 
+def topic_suggestion_selection_node(state: AgentState) -> AgentState:
+    """
+    Generates topic/subtopic names
+    from educational material and
+    lets user select topic/subtopic.
+
+    Strategies:
+    - Random chunk sampling
+    - LLM-based topic extraction
+    """
+
+    chunks = state["chunks"]
+
+    combined_text = ""
+
+    # Random chunk sampling
+    sample_chunks = random.sample(chunks, min(15, len(chunks)))
+
+    for chunk in sample_chunks:
+
+        combined_text += chunk["text"] + "\n\n"
+
+    response = llm.invoke([
+        SystemMessage(
+            content="""
+            You are an educational topic extractor.
+
+            Extract major topics and subtopics
+            from provided educational content.
+            """
+        ),
+
+        HumanMessage(
+            content=combined_text
+        )
+    ])
+
+    # Extract generated topics
+    suggested_topics = response.content
+
+    # Store in state
+    state["suggested_topics"] = suggested_topics
+
+    return state
+
 # Document Processing pipeline
 def process_document(state : AgentState) -> AgentState:
 
-    # Validation
-    state = document_validation_node(state)
+    try: 
 
-    if state["validation_status"] == "failed":
+        # Validation
+        state = document_validation_node(state)
+
+        if state["validation_status"] == "failed":
+            return state
+        
+        # Extract text
+        state = document_ingestion_node(state)
+
+        # Chunking 
+        state = semantic_chunking_node(state)
+
+        # Indexing
+        state = indexing_node(state)
+
+        # Topic Suggestion 
+        state = topic_suggestion_selection_node(state)
+
         return state
-    
-    # Extract text
-    state = document_ingestion_node(state)
 
-    # Chunking 
-    state = semantic_chunking_node(state)
 
-    # Indexing
-    state = indexing_node(state)
+    finally: 
 
-    return state
+        # Delete uploaded file after processing
+        if os.path.exists(state["file_path"]):
+
+            os.remove(state["file_path"])
+
 
