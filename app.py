@@ -2,7 +2,7 @@
 import streamlit as st
 import os 
 
-from backend.agent import process_document
+from backend.agent import processing, retrieval_node
 
 uploaded_file = st.file_uploader("Uploaded File", type=["pdf", "txt", "docx"], max_upload_size=1)
 
@@ -26,7 +26,7 @@ if uploaded_file is not None:
     }
 
     # Run backend validation 
-    updated_state = process_document(state)
+    updated_state = processing(state)
 
     
 
@@ -38,5 +38,11 @@ if uploaded_file is not None:
     # User Selected Topic/SubTopic
     selected_topic = st.text_input("Enter your topic or subtopic: ")
 
-    # Store Selected Topic in State
-    updated_state["selected_topic_or_subtopic"] = selected_topic
+    # Run Retrieval Only After Selection
+    if selected_topic:
+
+        updated_state["selected_topic_or_subtopic"] = selected_topic
+
+        updated_state = retrieval_node(updated_state)
+
+        st.success("Relevant Chunks Retrieved.")

@@ -311,6 +311,8 @@ def indexing_node(state : AgentState) -> AgentState:
 
     return state
 
+
+# Topic/SubTopic Suggestions and Selection Node
 def topic_suggestion_selection_node(state: AgentState) -> AgentState:
     """
     Generates topic/subtopic names
@@ -356,8 +358,57 @@ def topic_suggestion_selection_node(state: AgentState) -> AgentState:
 
     return state
 
-# Document Processing pipeline
-def process_document(state : AgentState) -> AgentState:
+
+
+# Retrieval Node
+def retrieval_node(state : AgentState) -> AgentState:
+    """
+    Retrieves semantically relevant chunks
+    based on selected topic/subtopic.
+    """
+
+    # Retrieve selected topic/subtopic
+    retrieval_query = state["selected_topic_or_subtopic"] 
+
+    # Generate query embedding
+    embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
+
+    query_embedding = embedding_model.embed_query(retrieval_query)
+    
+    # Search ChromaDB
+    results = collection.query(query_embeddings = [query_embedding],  n_results=5)
+
+    # Extract retrieved chunks
+    retrieved_chunks = []
+
+    documents = results["documents"][0]
+
+    metadatas = results["metadatas"][0]
+
+    ids = results["ids"][0]
+
+    # Build retrieved chunk objects
+    for chunk_id, text, metadata in zip(ids, documents, metadatas):
+
+        retrieved_chunks.append({
+
+            "chunk_id": chunk_id,
+
+            "text": text,
+
+            "page": metadata["page"],
+
+            "chunk_order":
+            metadata["chunk_order"]
+        })
+
+    # Store in state
+    state["retrieved_chunks"] = retrieved_chunks
+
+    return state
+
+# Nodes Processing pipeline
+def processing(state : AgentState) -> AgentState:
 
     try: 
 
@@ -378,6 +429,9 @@ def process_document(state : AgentState) -> AgentState:
 
         # Topic Suggestion 
         state = topic_suggestion_selection_node(state)
+        
+        # Retrieval 
+        state = retrieval_node(state)
 
         return state
 
