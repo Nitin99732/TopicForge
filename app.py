@@ -3,7 +3,7 @@
 import streamlit as st
 import os
 
-from backend.agent import processing, retrieval_node
+from backend.agent import processing, retrieval_node, mcq_or_theory_ques_gen_node
 
 
 # File uploader
@@ -78,3 +78,24 @@ if uploaded_file is not None:
 
             # Display selected type
             st.write("Selected Question Type:", updated_state["selected_questions_type"])
+            
+
+            # Difficulty Selection
+            difficulty = st.selectbox("Select Difficulty", ["easy", "medium", "hard"])
+
+            updated_state["selected_questions_difficulty"] = difficulty
+
+            # Generate Question Button
+            if st.button("Generate Question"):
+
+                updated_state = mcq_or_theory_ques_gen_node(updated_state)
+
+                st.subheader("Generated Question")
+
+                st.write(updated_state["generated_question"])
+
+                # User Answer Input
+                user_answer = st.text_input("Enter your answer")
+
+                # Store answer
+                updated_state["user_answer"] = user_answer
