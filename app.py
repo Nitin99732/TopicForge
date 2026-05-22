@@ -1,11 +1,15 @@
 # Libraries
+
 import streamlit as st
-import os 
+import os
 
 from backend.agent import processing, retrieval_node
 
-uploaded_file = st.file_uploader("Uploaded File", type=["pdf", "txt", "docx"], max_upload_size=1)
 
+# File uploader
+uploaded_file = st.file_uploader("Upload File", type=["pdf", "txt", "docx"])
+
+# Run only after upload
 if uploaded_file is not None:
 
     # Create uploads folder
@@ -21,28 +25,56 @@ if uploaded_file is not None:
 
     # Initial workflow state
     state = {
-        "file_path" : file_path, 
-        "file_type" : os.path.splitext(uploaded_file.name)[1]
+
+        "file_path": file_path,
+
+        "file_type": os.path.splitext(uploaded_file.name)[1]
     }
 
-    # Run backend validation 
+    # Process document
     updated_state = processing(state)
 
-    
+    # Validation failure
+    if updated_state["validation_status"] == "failed":
 
-    # Suggested Topics
-    st.subheader("Suggested Topics")
+        st.error(updated_state["validation_reason"])
 
-    st.write(updated_state["suggested_topics"])
+    else:
 
-    # User Selected Topic/SubTopic
-    selected_topic = st.text_input("Enter your topic or subtopic: ")
+        st.success("Document Processed Successfully")
 
-    # Run Retrieval Only After Selection
-    if selected_topic:
+        # Suggested Topics
+        st.subheader("Suggested Topics")
 
-        updated_state["selected_topic_or_subtopic"] = selected_topic
+        st.write(updated_state["suggested_topics"])
 
-        updated_state = retrieval_node(updated_state)
+        # User topic selection
+        selected_topic = st.text_input("Enter your topic or subtopic: ")
 
-        st.success("Relevant Chunks Retrieved.")
+        # Retrieval button
+        if st.button("Retrieve Relevant Chunks"):
+
+            # Store selected topic
+            updated_state[
+                "selected_topic_or_subtopic"
+            ] = selected_topic
+
+            # Run retrieval
+            updated_state = retrieval_node(updated_state)
+
+            st.success("Relevant Chunks Retrieved")
+
+            # Question type selection
+            question_type = st.selectbox("Select Question Type", ["MCQ", "Theory"])
+
+            # Store question type
+            if question_type == "MCQ":
+
+                updated_state["selected_questions_type"] = "mcq"
+
+            else:
+
+                updated_state["selected_questions_type"] = "theory"
+
+            # Display selected type
+            st.write("Selected Question Type:", updated_state["selected_questions_type"])

@@ -407,6 +407,7 @@ def retrieval_node(state : AgentState) -> AgentState:
 
     return state
 
+
 # Nodes Processing pipeline
 def processing(state : AgentState) -> AgentState:
 
@@ -429,9 +430,6 @@ def processing(state : AgentState) -> AgentState:
 
         # Topic Suggestion 
         state = topic_suggestion_selection_node(state)
-        
-        # Retrieval 
-        state = retrieval_node(state)
 
         return state
 
