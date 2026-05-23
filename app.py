@@ -3,7 +3,7 @@
 import streamlit as st
 import os
 
-from backend.agent import processing, retrieval_node, mcq_or_theory_ques_gen_node
+from backend.agent import processing, retrieval_node, mcq_or_theory_ques_gen_node, evaluation_node
 
 
 # Session State Initiaization
@@ -147,22 +147,64 @@ if st.session_state.document_processed:
 
                 st.subheader("Generated Question")
 
-                st.write(
-                    updated_state["generated_question"]
-                )
+                st.write(updated_state["generated_question"])
 
                 # User answer
-                user_answer = st.text_input(
-                    "Enter your answer"
-                )
+                user_answer = st.text_input("Enter your answer")
 
-                # Store answer
-                updated_state["user_answer"] = (
-                    user_answer
-                )
+                # Submit answer
+                if st.button("Submit Answer"):
+
+                    updated_state["user_answer"] = user_answer
+                    
+                    # Initialize history
+                    if "ques_history" not in updated_state:
+
+                        updated_state["ques_history"] = []
+
+                    # STORE QUESTION ATTEMPT
+                    question_data = {
+
+                        "question": updated_state["generated_question"],
+
+                        "question_type": updated_state["selected_questions_type"],
+
+                        "difficulty": updated_state["selected_questions_difficulty"],
+
+                        "user_answer": updated_state["user_answer"]
+                    }
+
+                    # MCQ
+                    if updated_state["selected_questions_type"] == "mcq":
+
+                        question_data["mcq_answer"] = updated_state["correct_ans"]
+
+                    # Theory
+                    else:
+
+                        question_data["theory_answer"] = updated_state["correct_ans"]
+
+                    # Append history
+                    updated_state["ques_history"].append(question_data)
+
+                    # RUN EVALUATION
+                    updated_state = evaluation_node(updated_state)
+
+                    # Save updated state
+                    st.session_state.updated_state = updated_state
+
+
+                    # DISPLAY RESULT
+                    latest_result = updated_state["evaluation_results"][-1]
+
+                    st.subheader("Evaluation")
+
+                    st.write("Score:", latest_result["score"])
+
+                    st.write("Your Answer:", latest_result["user_answer"])
+
+                    st.write("Correct Answer:", latest_result["correct_answer"])
 
             else:
 
-                st.error(
-                    "Question generation failed."
-                )
+                st.error("Question generation failed.")

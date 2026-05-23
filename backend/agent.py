@@ -77,6 +77,9 @@ class AgentState(TypedDict):
     # Question History
     ques_history: List[Dict]
 
+    # Evaluation Results
+    evaluation_results: List[Dict]
+
     # Total Score
     total_mcq_score: int
     total_theory_score: int
@@ -580,6 +583,160 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
         
 
         state["correct_ans"] = theory_ans
+
+    return state
+
+
+
+# Evaluation Node
+def evaluation_node(
+    state: AgentState
+) -> AgentState:
+
+    """
+    Evaluates user answers.
+    """
+
+    # Retrieve workflow state
+    ques_history = state["ques_history"]
+
+    # Total scores
+    total_mcq_score = 0
+
+    total_theory_score = 0
+
+    # Evaluation results
+    evaluation_results = []
+
+    for question in ques_history:
+
+        # ----------------------------
+        # MCQ Evaluation
+        # ----------------------------
+
+        if question["question_type"] == "mcq":
+
+            if (
+                question["mcq_answer"]
+                .lower()
+                .strip()
+
+                ==
+
+                question["user_answer"]
+                .lower()
+                .strip()
+            ):
+
+                mcq_score = 1
+
+            else:
+
+                mcq_score = 0
+
+            total_mcq_score += mcq_score
+
+            evaluation_results.append({
+
+                "question":
+                question["question"],
+
+                "score":
+                mcq_score,
+
+                "user_answer":
+                question["user_answer"],
+
+                "correct_answer":
+                question["mcq_answer"]
+            })
+
+        # ----------------------------
+        # THEORY EVALUATION
+        # ----------------------------
+
+        else:
+
+            system_mess = SystemMessage(
+
+                content=f"""
+                You are a theory question evaluator.
+
+                Give score from 0 to 10.
+
+                Question:
+                {question["question"]}
+
+                Difficulty:
+                {question["difficulty"]}
+
+                User Answer:
+                {question["user_answer"]}
+
+                Ideal Answer:
+                {question["theory_answer"]}
+
+                Output Format:
+
+                Score: ...
+                """
+            )
+
+            response = llm.invoke([
+                system_mess
+            ])
+
+            gen_output = response.content
+
+            # Safe extraction
+            if "Score:" in gen_output:
+
+                theory_score = gen_output.split(
+                    "Score:"
+                )[-1].strip()
+
+            else:
+
+                theory_score = "0"
+
+            try:
+
+                total_theory_score += int(
+                    theory_score
+                )
+
+            except:
+
+                pass
+
+            evaluation_results.append({
+
+                "question":
+                question["question"],
+
+                "score":
+                theory_score,
+
+                "user_answer":
+                question["user_answer"],
+
+                "correct_answer":
+                question["theory_answer"]
+            })
+
+    # Store totals
+    state["total_mcq_score"] = (
+        total_mcq_score
+    )
+
+    state["total_theory_score"] = (
+        total_theory_score
+    )
+
+    # Store evaluations
+    state["evaluation_results"] = (
+        evaluation_results
+    )
 
     return state
 
