@@ -422,11 +422,11 @@ def retrieval_node(state : AgentState) -> AgentState:
 
 
 # MCQ's or Theory Questions Generation Node
-def mcq_or_theory_ques_gen_node(state : AgentState) -> AgentState:
+def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
     """
     Generates a Single MCQ or Theory question.
 
-    Stores: 
+    Stores:
     - generated question
     - hidden correct answers
     - user answer
@@ -446,9 +446,10 @@ def mcq_or_theory_ques_gen_node(state : AgentState) -> AgentState:
     context = ""
 
     for chunk in topic_chunks:
-        context += chunk["text"] + "\n\n"
 
-    # Session memory 
+        context += (chunk["text"] + "\n\n")
+
+    # Session memory
     ques_history = state.get("ques_history", [])
 
     previous_ques = ""
@@ -458,112 +459,127 @@ def mcq_or_theory_ques_gen_node(state : AgentState) -> AgentState:
         previous_ques += (item["question"] + "\n")
 
 
-        # MCQ generation
-        if ques_type == "mcq":
+    # MCQ GENERATION
+    if ques_type == "mcq":
 
-            system_mess = SystemMessage(
-                content=f"""
-                        You are a educational MCQ generator.
+        system_mess = SystemMessage(
 
-                        Generate one mcq question.
+            content=f"""
+            You are an educational MCQ generator.
 
-                        Educational context:
-                        {context}
+            Generate one MCQ question.
 
-                        Topic:
-                        {topic}
+            Educational context:
+            {context}
 
-                        Difficulty:
-                        {ques_difficulty}                        
+            Topic:
+            {topic}
 
-                        Previously generated questions:
-                        {previous_ques}
+            Difficulty:
+            {ques_difficulty}
 
-                        Rules:
-                        - Generate only one mcq
-                        - Generate exactly four options
-                        - Do not repeat previous questions
-                        - Include correct answer
-                        - Keep formatting clean
+            Previously generated questions:
+            {previous_ques}
 
-                        Output Format:
+            Rules:
+            - Generate only one MCQ
+            - Generate exactly four options
+            - Do not repeat previous questions
+            - Include correct answer
 
-                        Question: ...
+            Output Format:
 
-                        A) ...
-                        B) ...
-                        C) ...
-                        D) ...
+            Question: ...
 
-                        Correct Answer: A
-                        """
-            )
+            A) ...
+            B) ...
+            C) ...
+            D) ...
 
-            response = llm.invoke([system_mess])
+            Correct Answer: A
+            """
+        )
 
-            generated_output = response.content
+        response = llm.invoke([system_mess])
 
-            # Extract correct answer
-            mcq_ans = generated_output.split("Correct Answer:")[-1].strip().lower()
+        generated_output = response.content
 
-            # Remove answer from display
+        # Safe extraction
+        if "Correct Answer:" in generated_output:
+
+            mcq_ans = generated_output.split("Correct Answer:")[-1].strip()
+
             display_ques = generated_output.split("Correct Answer:")[0].strip()
 
-            # Store Generated Question
-            state["generated_question"] = display_ques
-            state["correct_ans"] = mcq_ans
-
-        # Theory question generation
         else:
 
-            system_message = SystemMessage(
+            mcq_ans = "Not Found"
 
-                content=f"""
-                You are an educational theory
-                question generator.
+            display_ques = generated_output
 
-                Generate one theory question.
+        # Store
+        state["generated_question"] = display_ques
 
-                Educational Context:
-                {context}
+        state["correct_ans"] = mcq_ans
 
-                Topic:
-                {topic}
+    # THEORY GENERATION
+    else:
 
-                Difficulty:
-                {ques_difficulty}
+        system_message = SystemMessage(
 
-                Previously Generated Questions:
-                {previous_ques}
+            content=f"""
+            You are an educational theory
+            question generator.
 
-                Rules:
-                - Generate only one theory question
-                - Do not repeat previous questions
-                - Generate ideal answer
-                - Ideal answer should be
-                  around 50-100 words
+            Generate one theory question.
 
-                Output Format:
+            Educational Context:
+            {context}
 
-                Question: ...
+            Topic:
+            {topic}
 
-                Ideal Answer: ...
-                """
-            )
+            Difficulty:
+            {ques_difficulty}
 
-            response = llm.invoke([system_message])
+            Previously Generated Questions:
+            {previous_ques}
 
-            generated_output = response.content
+            Rules:
+            - Generate only one theory question
+            - Do not repeat previous questions
+            - Generate ideal answer
 
-            # Extract Hidden Ideal Answer
+            Output Format:
+
+            Question: ...
+
+            Ideal Answer: ...
+            """
+        )
+
+        response = llm.invoke([system_message])
+
+        generated_output = response.content
+
+        # Safe extraction
+        if "Ideal Answer:" in generated_output:
+
             theory_ans = generated_output.split("Ideal Answer:")[-1].strip()
-        
-            # Remove Answer From Display
+
             display_ques = generated_output.split("Ideal Answer:")[0].strip()
-            
-            # Store Generated Question
-            state["generated_question"] = display_ques
-            state["correct_ans"] = mcq_ans
+
+        else:
+
+            theory_ans = "Not Found"
+
+            display_ques = generated_output
+
+        # Store
+        state["generated_question"] = display_ques
+        
+
+        state["correct_ans"] = theory_ans
 
     return state
 

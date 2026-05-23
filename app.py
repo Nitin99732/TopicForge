@@ -6,35 +6,69 @@ import os
 from backend.agent import processing, retrieval_node, mcq_or_theory_ques_gen_node
 
 
+# Session State Initiaization
+if "updated_state" not in st.session_state:
+
+    st.session_state.updated_state = None
+
+if "document_processed" not in st.session_state:
+
+    st.session_state.document_processed = False
+
+if "retrieval_done" not in st.session_state:
+
+    st.session_state.retrieval_done = False
+
+if "question_generated" not in st.session_state:
+
+    st.session_state.question_generated = False
+
+
+
 # File uploader
 uploaded_file = st.file_uploader("Upload File", type=["pdf", "txt", "docx"])
 
-# Run only after upload
+
+# Document Processing
 if uploaded_file is not None:
 
-    # Create uploads folder
-    os.makedirs("uploads", exist_ok=True)
+    # Process Only Once
+    if not st.session_state.document_processed:
 
-    # Create file path
-    file_path = os.path.join("uploads", uploaded_file.name)
+        # Create uploads folder
+        os.makedirs("uploads", exist_ok=True)
 
-    # Save uploaded file
-    with open(file_path, "wb") as f:
+        # Create file path
+        file_path = os.path.join("uploads", uploaded_file.name)
 
-        f.write(uploaded_file.getbuffer())
+        # Save uploaded file
+        with open(file_path, "wb") as f:
 
-    # Initial workflow state
-    state = {
+            f.write(uploaded_file.getbuffer())
 
-        "file_path": file_path,
+        # Initial workflow state
+        state = {
 
-        "file_type": os.path.splitext(uploaded_file.name)[1]
-    }
+            "file_path": file_path,
 
-    # Process document
-    updated_state = processing(state)
+            "file_type": os.path.splitext(uploaded_file.name)[1]
+        }
 
-    # Validation failure
+        # Run Backend Processing
+        updated_state = processing(state)
+
+        # Store in Session State
+        st.session_state.updated_state = updated_state
+        st.session_state.document_processed = True
+
+
+
+# MAIN APP FLOW
+if st.session_state.document_processed:
+
+    updated_state = st.session_state.updated_state
+
+    # Validation check
     if updated_state["validation_status"] == "failed":
 
         st.error(updated_state["validation_reason"])
@@ -48,26 +82,36 @@ if uploaded_file is not None:
 
         st.write(updated_state["suggested_topics"])
 
-        # User topic selection
-        selected_topic = st.text_input("Enter your topic or subtopic: ")
+        # Topic input
+        selected_topic = st.text_input("Enter your topic or subtopic:")
 
-        # Retrieval button
+        # RETRIEVAL
         if st.button("Retrieve Relevant Chunks"):
 
-            # Store selected topic
-            updated_state[
-                "selected_topic_or_subtopic"
-            ] = selected_topic
+            if selected_topic.strip():
 
-            # Run retrieval
-            updated_state = retrieval_node(updated_state)
+                updated_state["selected_topic_or_subtopic"] = selected_topic
+
+                updated_state = retrieval_node(updated_state)
+
+                # Save updated state
+                st.session_state.updated_state = (updated_state)
+
+                st.session_state.retrieval_done = True
+
+            else:
+
+                st.warning("Please enter a topic first.")
+
+
+        # QUESTION SETTINGS
+        if st.session_state.retrieval_done:
 
             st.success("Relevant Chunks Retrieved")
 
-            # Question type selection
+            # Question type
             question_type = st.selectbox("Select Question Type", ["MCQ", "Theory"])
 
-            # Store question type
             if question_type == "MCQ":
 
                 updated_state["selected_questions_type"] = "mcq"
@@ -76,26 +120,49 @@ if uploaded_file is not None:
 
                 updated_state["selected_questions_type"] = "theory"
 
-            # Display selected type
-            st.write("Selected Question Type:", updated_state["selected_questions_type"])
-            
-
-            # Difficulty Selection
+            # Difficulty
             difficulty = st.selectbox("Select Difficulty", ["easy", "medium", "hard"])
 
             updated_state["selected_questions_difficulty"] = difficulty
 
-            # Generate Question Button
+            # QUESTION GENERATION
             if st.button("Generate Question"):
 
                 updated_state = mcq_or_theory_ques_gen_node(updated_state)
+             
+
+                # Save generated state
+                st.session_state.updated_state = updated_state
+              
+
+                st.session_state.question_generated = True
+
+        # DISPLAY QUESTION
+        if st.session_state.question_generated:
+
+            updated_state = st.session_state.updated_state
+
+            # Check if question exists
+            if "generated_question" in updated_state:
 
                 st.subheader("Generated Question")
 
-                st.write(updated_state["generated_question"])
+                st.write(
+                    updated_state["generated_question"]
+                )
 
-                # User Answer Input
-                user_answer = st.text_input("Enter your answer")
+                # User answer
+                user_answer = st.text_input(
+                    "Enter your answer"
+                )
 
                 # Store answer
-                updated_state["user_answer"] = user_answer
+                updated_state["user_answer"] = (
+                    user_answer
+                )
+
+            else:
+
+                st.error(
+                    "Question generation failed."
+                )
