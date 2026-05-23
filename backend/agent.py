@@ -3,8 +3,6 @@ from typing import TypedDict, Optional, List, Dict
 
 import os
 
-import fitz
-
 import random
 
 import chromadb
@@ -774,3 +772,35 @@ def processing(state : AgentState) -> AgentState:
             os.remove(state["file_path"])
 
 
+graph = StateGraph(AgentState)
+
+graph.add_node("document_validation_node", document_validation_node)
+graph.add_node("document_ingestion_node", document_ingestion_node)
+graph.add_node("semantic_chunking_node", semantic_chunking_node)
+graph.add_node("indexing_node", indexing_node)
+graph.add_node("topic_suggestion_selection_node", topic_suggestion_selection_node)
+graph.add_node("retrieval_node", retrieval_node)
+graph.add_node("mcq_or_theory_ques_gen", mcq_or_theory_ques_gen_node)
+graph.add_node("evaluation_node", evaluation_node)
+
+
+graph.add_edge(START, "document_validation_node")
+graph.add_edge("document_validation_node", "document_ingestion_node")
+graph.add_edge("document_ingestion_node", "semantic_chunking_node")
+graph.add_edge("semantic_chunking_node", "indexing_node")
+graph.add_edge("indexing_node", "topic_suggestion_selection_node")
+graph.add_edge("topic_suggestion_selection_node", "retrieval_node")
+graph.add_edge("retrieval_node", "mcq_or_theory_ques_gen")
+graph.add_edge("mcq_or_theory_ques_gen", "evaluation_node")
+graph.add_edge("evaluation_node", END)
+
+
+agent = graph.compile()
+
+png_data = agent.get_graph().draw_mermaid_png()
+
+with open("workflow_graph.png", "wb") as f:
+
+    f.write(png_data)
+
+print("Graph saved successfully.")
