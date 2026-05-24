@@ -430,16 +430,10 @@ def retrieval_node(state : AgentState) -> AgentState:
 
 
 
-# MCQ's or Theory Questions Generation Node
 def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
-    """
-    Generates a Single MCQ or Theory question.
 
-    Stores:
-    - generated question
-    - hidden correct answers
-    - user answer
-    - question history
+    """
+    Generates 5 unique MCQ or Theory questions.
     """
 
     # Retrieve workflow state
@@ -456,23 +450,29 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
 
     for chunk in topic_chunks:
 
-        context += (chunk["text"] + "\n\n")
+        context += chunk["text"] + "\n\n"
 
-    # Session memory
-    generated_questions = state.get("generated_questions", [])
-
-    # Prevent Duplicates
-    generated_ques_text = set()
+    # Store generated questions
+    generated_questions = []
 
     attempts = 0
 
-    # Generate 5 Questions
-
-    while len(generated_questions) < 5 and attempts < 15:
+    # Generate until 5 unique questions
+    while len(generated_questions) < 5 and attempts < 20:
 
         attempts += 1
 
-        # MCQ Generation
+        # PREVIOUS QUESTIONS
+        previous_questions = ""
+
+        for q in generated_questions:
+
+            previous_questions += q["question"] + "\n\n"
+
+        # ==========================
+        # MCQ GENERATION
+        # ==========================
+
         if ques_type == "mcq":
 
             system_mess = SystemMessage(
@@ -480,20 +480,25 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
                 content=f"""
                 You are an educational MCQ generator.
 
-                Generate only one MCQ question.
+                Generate ONLY ONE unique MCQ.
 
-                Educational context:
+                Educational Context:
                 {context}
+
                 Topic:
                 {topic}
 
                 Difficulty:
                 {ques_difficulty}
 
-                Rules:
-                - Generate only one MCQ
-                - Generate exactly four options
-                - Do not repeat previous questions
+                Previously Generated Questions:
+                {previous_questions}
+
+                IMPORTANT RULES:
+                - Do NOT repeat concepts
+                - Do NOT paraphrase old questions
+                - Generate a completely different question
+                - Generate exactly 4 options
                 - Include correct answer
 
                 Output Format:
@@ -513,28 +518,39 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
 
             generated_output = response.content
 
-            # Skip malformed outputs
+            # Skip malformed output
             if "Correct Answer:" not in generated_output:
 
                 continue
 
-            display_ques = generated_output.split("Correct Answer:")[0].strip()
+            display_ques = generated_output.split(
+                "Correct Answer:"
+            )[0].strip()
 
-            parts = generated_output.split("Correct Answer")
+            correct_ans = generated_output.split(
+                "Correct Answer:"
+            )[-1].strip()
 
-            display_ques = parts[0].strip()
+            # BETTER DUPLICATE CHECK
+            duplicate_found = False
 
-            correct_ans = parts[-1].replace(":", "").strip()
+            for old_question in generated_questions:
 
-            # Duplicate filtering
-            normalized_question = display_ques.lower().strip()
-            
-            if normalized_question in generated_ques_text:
+                old_text = old_question["question"].lower()
+
+                new_text = display_ques.lower()
+
+                # Similarity check
+                if old_text[:80] == new_text[:80]:
+
+                    duplicate_found = True
+                    break
+
+            if duplicate_found:
 
                 continue
 
-            generated_ques_text.add(normalized_question)
-
+            # SAVE QUESTION
             generated_questions.append({
 
                 "question": display_ques,
@@ -546,16 +562,18 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
                 "correct_answer": correct_ans
             })
 
+        # ==========================
+        # THEORY GENERATION
+        # ==========================
 
         else:
 
-            system_message = SystemMessage(
+            system_mess = SystemMessage(
 
                 content=f"""
-                You are an educational theory
-                question generator.
+                You are an educational theory question generator.
 
-                Generate only one theory questions.
+                Generate ONLY ONE unique theory question.
 
                 Educational Context:
                 {context}
@@ -566,44 +584,59 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
                 Difficulty:
                 {ques_difficulty}
 
-                Rules:
-                - Generate exactly one theory questions
-                - Include ideal answers
+                Previously Generated Questions:
+                {previous_questions}
+
+                IMPORTANT RULES:
+                - Do NOT repeat concepts
+                - Do NOT paraphrase old questions
+                - Generate a completely different question
+                - Include ideal answer
 
                 Output Format:
 
-                Question:
-                ...
+                Question: ...
 
-                Ideal Answer:
-                ...
+                Ideal Answer: ...
                 """
             )
 
-            response = llm.invoke([system_message])
+            response = llm.invoke([system_mess])
 
             generated_output = response.content
 
-            # Skip malformed outputs
+            # Skip malformed output
             if "Ideal Answer:" not in generated_output:
 
                 continue
 
-            parts = generated_output.split("Ideal Answer")
+            display_ques = generated_output.split(
+                "Ideal Answer:"
+            )[0].strip()
 
-            display_ques = parts[0].strip()
+            ideal_ans = generated_output.split(
+                "Ideal Answer:"
+            )[-1].strip()
 
-            ideal_ans = parts[-1].replace(":", "").strip()
+            # BETTER DUPLICATE CHECK
+            duplicate_found = False
 
-            # Duplicate filtering
-            normalized_question = display_ques.lower().strip()
+            for old_question in generated_questions:
 
-            if normalized_question in generated_ques_text:
+                old_text = old_question["question"].lower()
+
+                new_text = display_ques.lower()
+
+                if old_text[:80] == new_text[:80]:
+
+                    duplicate_found = True
+                    break
+
+            if duplicate_found:
 
                 continue
 
-            generated_ques_text.add(normalized_question)
-
+            # SAVE QUESTION
             generated_questions.append({
 
                 "question": display_ques,
@@ -615,10 +648,9 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
                 "correct_answer": ideal_ans
             })
 
-    # Store generated questions
+    # Store in state
     state["generated_questions"] = generated_questions
 
-    # Start from first question
     state["current_question_index"] = 0
 
     return state

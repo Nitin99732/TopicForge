@@ -23,6 +23,10 @@ if "question_generated" not in st.session_state:
 
     st.session_state.question_generated = False
 
+if "show_evaluation" not in st.session_state:
+
+    st.session_state.show_evaluation = False
+
 
 
 # File uploader
@@ -140,19 +144,13 @@ if st.session_state.document_processed:
         # DISPLAY QUESTIONS
         if st.session_state.question_generated:
 
-            updated_state = (
-                st.session_state.updated_state
-            )
+            updated_state = st.session_state.updated_state
 
-            questions = updated_state[
-                "generated_questions"
-            ]
+            questions = updated_state["generated_questions"]
 
-            current_index = updated_state[
-                "current_question_index"
-            ]
+            current_index = updated_state["current_question_index"]
 
-            # Quiz completed
+            # QUIZ COMPLETED
             if current_index >= len(questions):
 
                 st.success("Quiz Completed!")
@@ -175,100 +173,18 @@ if st.session_state.document_processed:
 
             else:
 
-                current_question = questions[
-                    current_index
-                ]
+                current_question = questions[current_index]
 
-                st.subheader(
+                # =========================
+                # SHOW EVALUATION SCREEN
+                # =========================
 
-                    f"Question {current_index + 1}/{len(questions)}"
-                )
+                if st.session_state.show_evaluation:
 
-                st.write(
-                    current_question["question"]
-                )
-
-                # User answer
-                user_answer = st.text_input(
-
-                    "Enter your answer",
-
-                    key=f"user_answer_{current_index}"
-                )
-
-                # Submit answer
-                if st.button(
-
-                    "Submit Answer",
-
-                    key=f"submit_{current_index}"
-                ):
-
-                    # Initialize history
-                    if "ques_history" not in updated_state:
-
-                        updated_state[
-                            "ques_history"
-                        ] = []
-
-                    # Store question attempt
-                    question_data = {
-
-                        "question":
-                        current_question["question"],
-
-                        "question_type":
-                        current_question[
-                            "question_type"
-                        ],
-
-                        "difficulty":
-                        current_question[
-                            "difficulty"
-                        ],
-
-                        "user_answer":
-                        user_answer
-                    }
-
-                    # MCQ
-                    if (
-                        current_question[
-                            "question_type"
-                        ] == "mcq"
-                    ):
-
-                        question_data[
-                            "mcq_answer"
-                        ] = current_question[
-                            "correct_answer"
-                        ]
-
-                    # Theory
-                    else:
-
-                        question_data[
-                            "theory_answer"
-                        ] = current_question[
-                            "correct_answer"
-                        ]
-
-                    # Append history
-                    updated_state[
-                        "ques_history"
-                    ].append(question_data)
-
-                    # Run evaluation
-                    updated_state = evaluation_node(
-                        updated_state
-                    )
-
-                    # Latest result
                     latest_result = updated_state[
                         "evaluation_results"
                     ][-1]
 
-                    # Show evaluation
                     st.subheader("Evaluation")
 
                     st.write(
@@ -286,14 +202,100 @@ if st.session_state.document_processed:
                         latest_result["correct_answer"]
                     )
 
-                    # Move next question
-                    updated_state[
-                        "current_question_index"
-                    ] += 1
+                    # NEXT QUESTION BUTTON
+                    if st.button("Next Question"):
 
-                    # Save state
-                    st.session_state.updated_state = (
-                        updated_state
+                        updated_state[
+                            "current_question_index"
+                        ] += 1
+
+                        st.session_state.updated_state = updated_state
+
+                        st.session_state.show_evaluation = False
+
+                        st.rerun()
+
+                # =========================
+                # SHOW QUESTION SCREEN
+                # =========================
+
+                else:
+
+                    st.subheader(
+                        f"Question {current_index + 1}/{len(questions)}"
                     )
 
-                    st.rerun()
+                    st.write(
+                        current_question["question"]
+                    )
+
+                    # USER ANSWER
+                    user_answer = st.text_input(
+                        "Enter your answer",
+                        key=f"user_answer_{current_index}"
+                    )
+
+                    # SUBMIT ANSWER
+                    if st.button(
+                        "Submit Answer",
+                        key=f"submit_{current_index}"
+                    ):
+
+                        # Initialize history
+                        if "ques_history" not in updated_state:
+
+                            updated_state["ques_history"] = []
+
+                        # STORE QUESTION DATA
+                        question_data = {
+
+                            "question":
+                            current_question["question"],
+
+                            "question_type":
+                            current_question["question_type"],
+
+                            "difficulty":
+                            current_question["difficulty"],
+
+                            "user_answer":
+                            user_answer
+                        }
+
+                        # MCQ
+                        if current_question["question_type"] == "mcq":
+
+                            question_data["mcq_answer"] = (
+                                current_question.get(
+                                    "correct_answer",
+                                    "Not Found"
+                                )
+                            )
+
+                        # THEORY
+                        else:
+
+                            question_data["theory_answer"] = (
+                                current_question.get(
+                                    "correct_answer",
+                                    "Not Found"
+                                )
+                            )
+
+                        # SAVE HISTORY
+                        updated_state["ques_history"].append(
+                            question_data
+                        )
+
+                        # RUN EVALUATION
+                        updated_state = evaluation_node(
+                            updated_state
+                        )
+
+                        # SAVE UPDATED STATE
+                        st.session_state.updated_state = updated_state
+
+                        # SHOW EVALUATION PAGE
+                        st.session_state.show_evaluation = True
+
+                        st.rerun()
