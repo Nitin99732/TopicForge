@@ -3,6 +3,8 @@ from typing import TypedDict, Optional, List, Dict
 
 import os
 
+import fitz 
+
 import random
 
 import chromadb
@@ -74,6 +76,12 @@ class AgentState(TypedDict):
 
     # Question History
     ques_history: List[Dict]
+
+    # Generated Questions Bank
+    generated_questions: List[Dict]
+
+    # Current Question Index
+    current_question_index: int
 
     # Evaluation Results
     evaluation_results: List[Dict]
@@ -451,136 +459,167 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
         context += (chunk["text"] + "\n\n")
 
     # Session memory
-    ques_history = state.get("ques_history", [])
+    generated_questions = state.get("generated_questions", [])
 
-    previous_ques = ""
+    # Prevent Duplicates
+    generated_ques_text = set()
 
-    for item in ques_history:
+    attempts = 0
 
-        previous_ques += (item["question"] + "\n")
+    # Generate 5 Questions
 
+    while len(generated_questions) < 5 and attempts < 15:
 
-    # MCQ GENERATION
-    if ques_type == "mcq":
+        attempts += 1
 
-        system_mess = SystemMessage(
+        # MCQ Generation
+        if ques_type == "mcq":
 
-            content=f"""
-            You are an educational MCQ generator.
+            system_mess = SystemMessage(
 
-            Generate one MCQ question.
+                content=f"""
+                You are an educational MCQ generator.
 
-            Educational context:
-            {context}
+                Generate only one MCQ question.
 
-            Topic:
-            {topic}
+                Educational context:
+                {context}
+                Topic:
+                {topic}
 
-            Difficulty:
-            {ques_difficulty}
+                Difficulty:
+                {ques_difficulty}
 
-            Previously generated questions:
-            {previous_ques}
+                Rules:
+                - Generate only one MCQ
+                - Generate exactly four options
+                - Do not repeat previous questions
+                - Include correct answer
 
-            Rules:
-            - Generate only one MCQ
-            - Generate exactly four options
-            - Do not repeat previous questions
-            - Include correct answer
+                Output Format:
 
-            Output Format:
+                Question: ...
 
-            Question: ...
+                A) ...
+                B) ...
+                C) ...
+                D) ...
 
-            A) ...
-            B) ...
-            C) ...
-            D) ...
+                Correct Answer: A
+                """
+            )
 
-            Correct Answer: A
-            """
-        )
+            response = llm.invoke([system_mess])
 
-        response = llm.invoke([system_mess])
+            generated_output = response.content
 
-        generated_output = response.content
+            # Skip malformed outputs
+            if "Correct Answer:" not in generated_output:
 
-        # Safe extraction
-        if "Correct Answer:" in generated_output:
-
-            mcq_ans = generated_output.split("Correct Answer:")[-1].strip()
+                continue
 
             display_ques = generated_output.split("Correct Answer:")[0].strip()
 
-        else:
+            parts = generated_output.split("Correct Answer")
 
-            mcq_ans = "Not Found"
+            display_ques = parts[0].strip()
 
-            display_ques = generated_output
+            correct_ans = parts[-1].replace(":", "").strip()
 
-        # Store
-        state["generated_question"] = display_ques
+            # Duplicate filtering
+            normalized_question = display_ques.lower().strip()
+            
+            if normalized_question in generated_ques_text:
 
-        state["correct_ans"] = mcq_ans
+                continue
 
-    # THEORY GENERATION
-    else:
+            generated_ques_text.add(normalized_question)
 
-        system_message = SystemMessage(
+            generated_questions.append({
 
-            content=f"""
-            You are an educational theory
-            question generator.
+                "question": display_ques,
 
-            Generate one theory question.
+                "question_type": "mcq",
 
-            Educational Context:
-            {context}
+                "difficulty": ques_difficulty,
 
-            Topic:
-            {topic}
+                "correct_answer": correct_ans
+            })
 
-            Difficulty:
-            {ques_difficulty}
-
-            Previously Generated Questions:
-            {previous_ques}
-
-            Rules:
-            - Generate only one theory question
-            - Do not repeat previous questions
-            - Generate ideal answer
-
-            Output Format:
-
-            Question: ...
-
-            Ideal Answer: ...
-            """
-        )
-
-        response = llm.invoke([system_message])
-
-        generated_output = response.content
-
-        # Safe extraction
-        if "Ideal Answer:" in generated_output:
-
-            theory_ans = generated_output.split("Ideal Answer:")[-1].strip()
-
-            display_ques = generated_output.split("Ideal Answer:")[0].strip()
 
         else:
 
-            theory_ans = "Not Found"
+            system_message = SystemMessage(
 
-            display_ques = generated_output
+                content=f"""
+                You are an educational theory
+                question generator.
 
-        # Store
-        state["generated_question"] = display_ques
-        
+                Generate only one theory questions.
 
-        state["correct_ans"] = theory_ans
+                Educational Context:
+                {context}
+
+                Topic:
+                {topic}
+
+                Difficulty:
+                {ques_difficulty}
+
+                Rules:
+                - Generate exactly one theory questions
+                - Include ideal answers
+
+                Output Format:
+
+                Question:
+                ...
+
+                Ideal Answer:
+                ...
+                """
+            )
+
+            response = llm.invoke([system_message])
+
+            generated_output = response.content
+
+            # Skip malformed outputs
+            if "Ideal Answer:" not in generated_output:
+
+                continue
+
+            parts = generated_output.split("Ideal Answer")
+
+            display_ques = parts[0].strip()
+
+            ideal_ans = parts[-1].replace(":", "").strip()
+
+            # Duplicate filtering
+            normalized_question = display_ques.lower().strip()
+
+            if normalized_question in generated_ques_text:
+
+                continue
+
+            generated_ques_text.add(normalized_question)
+
+            generated_questions.append({
+
+                "question": display_ques,
+
+                "question_type": "theory",
+
+                "difficulty": ques_difficulty,
+
+                "correct_answer": ideal_ans
+            })
+
+    # Store generated questions
+    state["generated_questions"] = generated_questions
+
+    # Start from first question
+    state["current_question_index"] = 0
 
     return state
 

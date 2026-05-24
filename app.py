@@ -26,7 +26,7 @@ if "question_generated" not in st.session_state:
 
 
 # File uploader
-uploaded_file = st.file_uploader("Upload File", type=["pdf", "txt", "docx"])
+uploaded_file = st.file_uploader("Upload File", type=["pdf", "txt", "docx"], max_upload_size=1)
 
 
 # Document Processing
@@ -137,74 +137,163 @@ if st.session_state.document_processed:
 
                 st.session_state.question_generated = True
 
-        # DISPLAY QUESTION
+        # DISPLAY QUESTIONS
         if st.session_state.question_generated:
 
-            updated_state = st.session_state.updated_state
+            updated_state = (
+                st.session_state.updated_state
+            )
 
-            # Check if question exists
-            if "generated_question" in updated_state:
+            questions = updated_state[
+                "generated_questions"
+            ]
 
-                st.subheader("Generated Question")
+            current_index = updated_state[
+                "current_question_index"
+            ]
 
-                st.write(updated_state["generated_question"])
+            # Quiz completed
+            if current_index >= len(questions):
+
+                st.success("Quiz Completed!")
+
+                st.write(
+                    "MCQ Score:",
+                    updated_state.get(
+                        "total_mcq_score",
+                        0
+                    )
+                )
+
+                st.write(
+                    "Theory Score:",
+                    updated_state.get(
+                        "total_theory_score",
+                        0
+                    )
+                )
+
+            else:
+
+                current_question = questions[
+                    current_index
+                ]
+
+                st.subheader(
+
+                    f"Question {current_index + 1}/{len(questions)}"
+                )
+
+                st.write(
+                    current_question["question"]
+                )
 
                 # User answer
-                user_answer = st.text_input("Enter your answer")
+                user_answer = st.text_input(
+
+                    "Enter your answer",
+
+                    key=f"user_answer_{current_index}"
+                )
 
                 # Submit answer
-                if st.button("Submit Answer"):
+                if st.button(
 
-                    updated_state["user_answer"] = user_answer
-                    
+                    "Submit Answer",
+
+                    key=f"submit_{current_index}"
+                ):
+
                     # Initialize history
                     if "ques_history" not in updated_state:
 
-                        updated_state["ques_history"] = []
+                        updated_state[
+                            "ques_history"
+                        ] = []
 
-                    # STORE QUESTION ATTEMPT
+                    # Store question attempt
                     question_data = {
 
-                        "question": updated_state["generated_question"],
+                        "question":
+                        current_question["question"],
 
-                        "question_type": updated_state["selected_questions_type"],
+                        "question_type":
+                        current_question[
+                            "question_type"
+                        ],
 
-                        "difficulty": updated_state["selected_questions_difficulty"],
+                        "difficulty":
+                        current_question[
+                            "difficulty"
+                        ],
 
-                        "user_answer": updated_state["user_answer"]
+                        "user_answer":
+                        user_answer
                     }
 
                     # MCQ
-                    if updated_state["selected_questions_type"] == "mcq":
+                    if (
+                        current_question[
+                            "question_type"
+                        ] == "mcq"
+                    ):
 
-                        question_data["mcq_answer"] = updated_state["correct_ans"]
+                        question_data[
+                            "mcq_answer"
+                        ] = current_question[
+                            "correct_answer"
+                        ]
 
                     # Theory
                     else:
 
-                        question_data["theory_answer"] = updated_state["correct_ans"]
+                        question_data[
+                            "theory_answer"
+                        ] = current_question[
+                            "correct_answer"
+                        ]
 
                     # Append history
-                    updated_state["ques_history"].append(question_data)
+                    updated_state[
+                        "ques_history"
+                    ].append(question_data)
 
-                    # RUN EVALUATION
-                    updated_state = evaluation_node(updated_state)
+                    # Run evaluation
+                    updated_state = evaluation_node(
+                        updated_state
+                    )
 
-                    # Save updated state
-                    st.session_state.updated_state = updated_state
+                    # Latest result
+                    latest_result = updated_state[
+                        "evaluation_results"
+                    ][-1]
 
-
-                    # DISPLAY RESULT
-                    latest_result = updated_state["evaluation_results"][-1]
-
+                    # Show evaluation
                     st.subheader("Evaluation")
 
-                    st.write("Score:", latest_result["score"])
+                    st.write(
+                        "Score:",
+                        latest_result["score"]
+                    )
 
-                    st.write("Your Answer:", latest_result["user_answer"])
+                    st.write(
+                        "Your Answer:",
+                        latest_result["user_answer"]
+                    )
 
-                    st.write("Correct Answer:", latest_result["correct_answer"])
+                    st.write(
+                        "Correct Answer:",
+                        latest_result["correct_answer"]
+                    )
 
-            else:
+                    # Move next question
+                    updated_state[
+                        "current_question_index"
+                    ] += 1
 
-                st.error("Question generation failed.")
+                    # Save state
+                    st.session_state.updated_state = (
+                        updated_state
+                    )
+
+                    st.rerun()
