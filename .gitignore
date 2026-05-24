@@ -10,3 +10,11 @@ wheels/
 .venv
 
 .env
+
+chroma_db
+
+uploads
+
+python-version
+
+uv.lock
