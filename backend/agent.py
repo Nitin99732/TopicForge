@@ -363,6 +363,8 @@ def topic_suggestion_selection_node(state: AgentState) -> AgentState:
 
             Extract major topics and subtopics
             from provided educational content.
+
+            Extract only two or three topic and subtopic.
             """
         ),
 
@@ -469,10 +471,8 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
 
             previous_questions += q["question"] + "\n\n"
 
-        # ==========================
-        # MCQ GENERATION
-        # ==========================
 
+        # MCQ GENERATION
         if ques_type == "mcq":
 
             system_mess = SystemMessage(
@@ -523,15 +523,11 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
 
                 continue
 
-            display_ques = generated_output.split(
-                "Correct Answer:"
-            )[0].strip()
+            display_ques = generated_output.split("Correct Answer:")[0].strip()
 
-            correct_ans = generated_output.split(
-                "Correct Answer:"
-            )[-1].strip()
+            correct_ans = generated_output.split("Correct Answer:")[-1].strip()
 
-            # BETTER DUPLICATE CHECK
+            # DUPLICATE CHECK
             duplicate_found = False
 
             for old_question in generated_questions:
@@ -562,10 +558,7 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
                 "correct_answer": correct_ans
             })
 
-        # ==========================
         # THEORY GENERATION
-        # ==========================
-
         else:
 
             system_mess = SystemMessage(
@@ -610,15 +603,11 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
 
                 continue
 
-            display_ques = generated_output.split(
-                "Ideal Answer:"
-            )[0].strip()
+            display_ques = generated_output.split("Ideal Answer:" )[0].strip()
 
-            ideal_ans = generated_output.split(
-                "Ideal Answer:"
-            )[-1].strip()
+            ideal_ans = generated_output.split("Ideal Answer:")[-1].strip()
 
-            # BETTER DUPLICATE CHECK
+            # DUPLICATE CHECK
             duplicate_found = False
 
             for old_question in generated_questions:
@@ -658,9 +647,7 @@ def mcq_or_theory_ques_gen_node(state: AgentState) -> AgentState:
 
 
 # Evaluation Node
-def evaluation_node(
-    state: AgentState
-) -> AgentState:
+def evaluation_node(state: AgentState) -> AgentState:
 
     """
     Evaluates user answers.
@@ -679,23 +666,10 @@ def evaluation_node(
 
     for question in ques_history:
 
-        # ----------------------------
         # MCQ Evaluation
-        # ----------------------------
-
         if question["question_type"] == "mcq":
 
-            if (
-                question["mcq_answer"]
-                .lower()
-                .strip()
-
-                ==
-
-                question["user_answer"]
-                .lower()
-                .strip()
-            ):
+            if question["mcq_answer"].lower().strip() == question["user_answer"].lower().strip():
 
                 mcq_score = 1
 
@@ -707,23 +681,16 @@ def evaluation_node(
 
             evaluation_results.append({
 
-                "question":
-                question["question"],
+                "question": question["question"],
 
-                "score":
-                mcq_score,
+                "score": mcq_score,
 
-                "user_answer":
-                question["user_answer"],
+                "user_answer": question["user_answer"],
 
-                "correct_answer":
-                question["mcq_answer"]
-            })
+                "correct_answer": question["mcq_answer"]})
 
-        # ----------------------------
+
         # THEORY EVALUATION
-        # ----------------------------
-
         else:
 
             system_mess = SystemMessage(
@@ -751,18 +718,14 @@ def evaluation_node(
                 """
             )
 
-            response = llm.invoke([
-                system_mess
-            ])
+            response = llm.invoke([system_mess])
 
             gen_output = response.content
 
             # Safe extraction
             if "Score:" in gen_output:
 
-                theory_score = gen_output.split(
-                    "Score:"
-                )[-1].strip()
+                theory_score = gen_output.split("Score:")[-1].strip()
 
             else:
 
@@ -770,9 +733,7 @@ def evaluation_node(
 
             try:
 
-                total_theory_score += int(
-                    theory_score
-                )
+                total_theory_score += int(theory_score)
 
             except:
 
@@ -780,17 +741,13 @@ def evaluation_node(
 
             evaluation_results.append({
 
-                "question":
-                question["question"],
+                "question": question["question"],
 
-                "score":
-                theory_score,
+                "score": theory_score,
 
-                "user_answer":
-                question["user_answer"],
+                "user_answer": question["user_answer"],
 
-                "correct_answer":
-                question["theory_answer"]
+                "correct_answer": question["theory_answer"]
             })
 
     # Store totals

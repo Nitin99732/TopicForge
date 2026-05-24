@@ -1,12 +1,122 @@
 # Libraries
-
 import streamlit as st
 import os
 
 from backend.agent import processing, retrieval_node, mcq_or_theory_ques_gen_node, evaluation_node
 
 
-# Session State Initiaization
+
+# PAGE CONFIG
+st.set_page_config(
+
+    page_title="AI Quiz Generator",
+
+    page_icon="🧠",
+
+    layout="centered"
+)
+
+# CUSTOM CS
+st.markdown(
+    """
+    <style>
+
+    .main {
+
+        padding-top: 2rem;
+    }
+
+    .title {
+
+        text-align: center;
+
+        font-size: 42px;
+
+        font-weight: bold;
+
+        color: #4CAF50;
+
+        margin-bottom: 10px;
+    }
+
+    .subtitle {
+
+        text-align: center;
+
+        font-size: 18px;
+
+        color: #BBBBBB;
+
+        margin-bottom: 40px;
+    }
+
+    .section-box {
+
+        background-color: #111827;
+
+        padding: 20px;
+
+        border-radius: 15px;
+
+        margin-bottom: 20px;
+
+        border: 1px solid #2d3748;
+    }
+
+    .question-box {
+
+        background-color: #1E293B;
+
+        padding: 25px;
+
+        border-radius: 15px;
+
+        margin-top: 20px;
+
+        border-left: 5px solid #4CAF50;
+    }
+
+    .evaluation-box {
+
+        background-color: #0F172A;
+
+        padding: 20px;
+
+        border-radius: 15px;
+
+        border-left: 5px solid #38BDF8;
+
+        margin-top: 20px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+
+# TITLE
+st.markdown(
+
+    """
+    <div class="title">
+        🧠 AI Quiz Generator
+    </div>
+
+    <div class="subtitle">
+        Generate MCQ and Theory Questions from PDFs using AI
+    </div>
+    """,
+
+    unsafe_allow_html=True
+)
+
+st.divider()
+
+
+
+# SESSION STATE
 if "updated_state" not in st.session_state:
 
     st.session_state.updated_state = None
@@ -29,28 +139,30 @@ if "show_evaluation" not in st.session_state:
 
 
 
-# File uploader
-uploaded_file = st.file_uploader("Upload File", type=["pdf", "txt", "docx"], max_upload_size=1)
+# FILE UPLOADER
+uploaded_file = st.file_uploader(
+
+    "📄 Upload File",
+
+    type=["pdf", "txt", "docx"], 
+    
+    max_upload_size=1
+)
 
 
-# Document Processing
+# DOCUMENT PROCESSING
 if uploaded_file is not None:
 
-    # Process Only Once
     if not st.session_state.document_processed:
 
-        # Create uploads folder
         os.makedirs("uploads", exist_ok=True)
 
-        # Create file path
         file_path = os.path.join("uploads", uploaded_file.name)
 
-        # Save uploaded file
         with open(file_path, "wb") as f:
 
             f.write(uploaded_file.getbuffer())
 
-        # Initial workflow state
         state = {
 
             "file_path": file_path,
@@ -58,39 +170,47 @@ if uploaded_file is not None:
             "file_type": os.path.splitext(uploaded_file.name)[1]
         }
 
-        # Run Backend Processing
         updated_state = processing(state)
 
-        # Store in Session State
         st.session_state.updated_state = updated_state
+
         st.session_state.document_processed = True
 
 
-
-# MAIN APP FLOW
+# MAIN FLOW
 if st.session_state.document_processed:
 
     updated_state = st.session_state.updated_state
 
-    # Validation check
+    # Validation
     if updated_state["validation_status"] == "failed":
 
         st.error(updated_state["validation_reason"])
 
     else:
 
-        st.success("Document Processed Successfully")
+        st.success("✅ Document Processed Successfully")
 
-        # Suggested Topics
-        st.subheader("Suggested Topics")
+        # TOPIC SECTION
+        st.markdown(
+            """
+            <div class="section-box">
+            <h3>📚 Suggested Topics</h3>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         st.write(updated_state["suggested_topics"])
 
-        # Topic input
-        selected_topic = st.text_input("Enter your topic or subtopic:")
+        selected_topic = st.text_input(
+            "Enter your topic or subtopic:"
+        )
+
 
         # RETRIEVAL
-        if st.button("Retrieve Relevant Chunks"):
+
+        if st.button("🔍 Retrieve Relevant Chunks"):
 
             if selected_topic.strip():
 
@@ -98,8 +218,7 @@ if st.session_state.document_processed:
 
                 updated_state = retrieval_node(updated_state)
 
-                # Save updated state
-                st.session_state.updated_state = (updated_state)
+                st.session_state.updated_state = updated_state
 
                 st.session_state.retrieval_done = True
 
@@ -111,9 +230,8 @@ if st.session_state.document_processed:
         # QUESTION SETTINGS
         if st.session_state.retrieval_done:
 
-            st.success("Relevant Chunks Retrieved")
+            st.success("✅ Relevant Chunks Retrieved")
 
-            # Question type
             question_type = st.selectbox("Select Question Type", ["MCQ", "Theory"])
 
             if question_type == "MCQ":
@@ -124,24 +242,22 @@ if st.session_state.document_processed:
 
                 updated_state["selected_questions_type"] = "theory"
 
-            # Difficulty
             difficulty = st.selectbox("Select Difficulty", ["easy", "medium", "hard"])
 
             updated_state["selected_questions_difficulty"] = difficulty
 
-            # QUESTION GENERATION
-            if st.button("Generate Question"):
+   
+            # GENERATE QUESTIONS
+            if st.button("🚀 Generate Question"):
 
                 updated_state = mcq_or_theory_ques_gen_node(updated_state)
-             
 
-                # Save generated state
                 st.session_state.updated_state = updated_state
-              
 
                 st.session_state.question_generated = True
 
-        # DISPLAY QUESTIONS
+
+        # SHOW QUESTIONS
         if st.session_state.question_generated:
 
             updated_state = st.session_state.updated_state
@@ -150,21 +266,28 @@ if st.session_state.document_processed:
 
             current_index = updated_state["current_question_index"]
 
+
             # QUIZ COMPLETED
             if current_index >= len(questions):
 
-                st.success("Quiz Completed!")
+                st.balloons()
 
-                st.write(
-                    "MCQ Score:",
+                st.success("🎉 Quiz Completed Successfully!")
+
+                st.metric(
+
+                    "MCQ Score",
+
                     updated_state.get(
                         "total_mcq_score",
                         0
                     )
                 )
 
-                st.write(
-                    "Theory Score:",
+                st.metric(
+
+                    "Theory Score",
+
                     updated_state.get(
                         "total_theory_score",
                         0
@@ -175,39 +298,45 @@ if st.session_state.document_processed:
 
                 current_question = questions[current_index]
 
-                # =========================
-                # SHOW EVALUATION SCREEN
-                # =========================
-
+      
+                # EVALUATION SCREEN
                 if st.session_state.show_evaluation:
 
-                    latest_result = updated_state[
-                        "evaluation_results"
-                    ][-1]
+                    latest_result = updated_state[ "evaluation_results"][-1]
 
-                    st.subheader("Evaluation")
+                    st.markdown(
+
+                        """
+                        <div class="evaluation-box">
+
+                        <h2>
+                        📊 Evaluation Result
+                        </h2>
+
+                        </div>
+                        """,
+
+                        unsafe_allow_html=True
+                    )
 
                     st.write(
-                        "Score:",
+                        "### Score:",
                         latest_result["score"]
                     )
 
                     st.write(
-                        "Your Answer:",
+                        "### Your Answer:",
                         latest_result["user_answer"]
                     )
 
                     st.write(
-                        "Correct Answer:",
+                        "### Correct Answer:",
                         latest_result["correct_answer"]
                     )
 
-                    # NEXT QUESTION BUTTON
-                    if st.button("Next Question"):
+                    if st.button("➡️ Next Question"):
 
-                        updated_state[
-                            "current_question_index"
-                        ] += 1
+                        updated_state["current_question_index"] += 1
 
                         st.session_state.updated_state = updated_state
 
@@ -215,87 +344,80 @@ if st.session_state.document_processed:
 
                         st.rerun()
 
-                # =========================
-                # SHOW QUESTION SCREEN
-                # =========================
-
+     
+                # QUESTION SCREEN
                 else:
 
-                    st.subheader(
-                        f"Question {current_index + 1}/{len(questions)}"
+                    st.markdown(
+
+                        f"""
+                        <div class="question-box">
+
+                        <h1>
+                        Question {current_index + 1}/{len(questions)}
+                        </h1>
+
+                        </div>
+                        """,
+
+                        unsafe_allow_html=True
                     )
 
                     st.write(
                         current_question["question"]
                     )
 
-                    # USER ANSWER
                     user_answer = st.text_input(
+
                         "Enter your answer",
+
                         key=f"user_answer_{current_index}"
                     )
 
-                    # SUBMIT ANSWER
                     if st.button(
-                        "Submit Answer",
+
+                        "✅ Submit Answer",
+
                         key=f"submit_{current_index}"
                     ):
 
-                        # Initialize history
                         if "ques_history" not in updated_state:
 
                             updated_state["ques_history"] = []
 
-                        # STORE QUESTION DATA
                         question_data = {
 
-                            "question":
-                            current_question["question"],
+                            "question": current_question["question"],
 
-                            "question_type":
-                            current_question["question_type"],
+                            "question_type": current_question["question_type"],
 
-                            "difficulty":
-                            current_question["difficulty"],
+                            "difficulty": current_question["difficulty"],
 
-                            "user_answer":
-                            user_answer
+                            "user_answer": user_answer
                         }
 
                         # MCQ
                         if current_question["question_type"] == "mcq":
 
-                            question_data["mcq_answer"] = (
-                                current_question.get(
-                                    "correct_answer",
-                                    "Not Found"
-                                )
+                            question_data["mcq_answer"] = current_question.get(
+                                "correct_answer",
+                                "Not Found"
                             )
 
                         # THEORY
                         else:
 
-                            question_data["theory_answer"] = (
-                                current_question.get(
-                                    "correct_answer",
-                                    "Not Found"
-                                )
+                            question_data["theory_answer"] = current_question.get(
+                                "correct_answer",
+                                "Not Found"
                             )
 
-                        # SAVE HISTORY
-                        updated_state["ques_history"].append(
-                            question_data
-                        )
+                        updated_state["ques_history"].append(question_data)
 
-                        # RUN EVALUATION
-                        updated_state = evaluation_node(
-                            updated_state
-                        )
+                        updated_state = evaluation_node(updated_state)
 
-                        # SAVE UPDATED STATE
                         st.session_state.updated_state = updated_state
 
-                        # SHOW EVALUATION PAGE
                         st.session_state.show_evaluation = True
 
                         st.rerun()
