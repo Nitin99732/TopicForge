@@ -21,3 +21,7 @@ This project is a Retrieval-Augmented Generation (RAG) based educational AI agen
 - 🎯 Difficulty selection
 - 🗂️ Vector database using ChromaDB
 - 🌐 Interactive Streamlit UI
+
+## Graph 
+<img width="283" height="928" alt="workflow_graph" src="https://github.com/user-attachments/assets/171beb49-dc29-4741-9e43-a5053aaa5a73" />
+
