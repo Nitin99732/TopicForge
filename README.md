@@ -10,3 +10,13 @@ The workflow includes: - Document Validation
 - Semantic Retrieval
 - AI Question Generation
 - Answer Evaluation
+
+Features
+📄 PDF/TXT/DOCX support
+🧩 Semantic chunking
+🔍 Retrieval-Augmented Generation (RAG)
+🧠 AI-generated MCQs & theory questions
+📊 Real-time evaluation
+🎯 Difficulty selection
+💾 Vector database using ChromaDB
+🌐 Interactive Streamlit UI
